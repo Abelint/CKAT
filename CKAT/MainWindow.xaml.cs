@@ -57,12 +57,13 @@ namespace CKAT
 
             int percent = 0;
             // Параметры для POST-запроса
-            string url = "http://skat.geo-atlas.ru/1.php";
+            string url = "http://skat.geo-atlas.ru/core.php";
             //string dir = "grups1";
             string pass = "8882";
            
-            string id_pc = "test";
+            string id_pc = UniqueComputerIdentifier.GetComputerIdentifier(); //номер компьютера
             Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut.ini");
+           // Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut_работает.ini");
             Dictionary<string, string> positionIni = iniFile["PERINF"];
             grups = positionIni["idcl"];
             dir = grups;
@@ -133,14 +134,14 @@ namespace CKAT
 
                         }
                     }
-                }
+            }
                 catch (Exception ex)
                 {
-                    count++;
-                    allRight = true;
-                    Thread.Sleep(50);
-                }
+                count++;
+                allRight = true;
+                Thread.Sleep(50);
             }
+        }
             if (allRight)
             {
                 // Создаем новый процесс
@@ -151,7 +152,7 @@ namespace CKAT
                 // Запускаем процесс
                 process.Start();
                 Thread.Sleep(1000);
-                
+
                 Close();
             }
             
