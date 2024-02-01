@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,9 +34,13 @@ namespace CKAT
         private Queue<string[]> filesToDownload2 = new Queue<string[]>();
         private WebClient webClient;
         private string currentFile;
+        private long sizeFile = -1;
         string dir = "";
         string grups = "";
         string token = "";
+        string pass = "";
+        string url = "";
+        string id_pc = "";
         public MainWindow()
         {
             InitializeComponent();
@@ -57,11 +62,11 @@ namespace CKAT
 
             int percent = 0;
             // Параметры для POST-запроса
-            string url = "http://skat.geo-atlas.ru/core.php";
+            url = "http://skat.geo-atlas.ru/core.php";
             //string dir = "grups1";
-            string pass = "8882";
+            pass = "8882";
            
-            string id_pc = UniqueComputerIdentifier.GetComputerIdentifier(); //номер компьютера
+            id_pc = UniqueComputerIdentifier.GetComputerIdentifier(); //номер компьютера
             Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut.ini");
            // Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut_работает.ini");
             Dictionary<string, string> positionIni = iniFile["PERINF"];
@@ -69,9 +74,37 @@ namespace CKAT
             dir = grups;
             token = positionIni["token"];
 
-            byte count =0;
+           
+            bool allRight = DownloadAll(pass, id_pc,url);
+            
+            if (allRight)
+            {
+                // Создаем новый процесс
+                Process process = new Process();
+                // Задаем параметры запуска процесса
+                process.StartInfo.FileName = "skat.exe";
+                process.StartInfo.Arguments = token; // Первый аргумент
+                // Запускаем процесс
+                process.Start();
+                Thread.Sleep(1000);
+
+                Close();
+            }
+            
+
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pass"></param>
+        /// <param name="id_pc"></param>
+        /// <param name="url"></param>
+        /// <returns></returns>
+        bool DownloadAll(string pass, string id_pc, string url)
+        {
+            byte count = 0;
             bool allRight = true;
-            while(count < 10 && allRight)
+            while (count < 30 && allRight)
             {
                 try
                 {
@@ -128,35 +161,22 @@ namespace CKAT
                                 filesToDownload2.Enqueue(fileInfo);
                             }
 
+
                             InitializeDownloader(); // Инициализация WebClient и настройка событий
                             DownloadNextFile(); // Начать загрузку первого файла в очереди
 
 
                         }
                     }
-            }
+                }
                 catch (Exception ex)
                 {
-                count++;
-                allRight = true;
-                Thread.Sleep(50);
+                    count++;
+                    allRight = true;
+                    Thread.Sleep(1000);
+                }
             }
-        }
-            if (allRight)
-            {
-                // Создаем новый процесс
-                Process process = new Process();
-                // Задаем параметры запуска процесса
-                process.StartInfo.FileName = "skat.exe";
-                process.StartInfo.Arguments = token; // Первый аргумент
-                // Запускаем процесс
-                process.Start();
-                Thread.Sleep(1000);
-
-                Close();
-            }
-            
-
+            return allRight;
         }
 
        
@@ -168,6 +188,50 @@ namespace CKAT
                 string[] huynya3000 = filesToDownload2.Dequeue();
                 currentFile = huynya3000[0];
                
+                string fileUrl = $"http://skat.geo-atlas.ru/build/{dir}/{currentFile}";
+
+                LabelForText.Content = $"Файл {currentFile} качаем.";
+                FileInfo existingFile = new FileInfo(currentFile);
+                long fileSize = long.Parse(huynya3000[1]);
+                sizeFile = fileSize;
+
+                if (!File.Exists(existingFile.FullName))
+                {
+                    webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
+                }
+                else if (existingFile.Length != fileSize)
+                {
+                    webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
+                }
+                else
+                {
+                    DownloadNextFile();
+                }
+
+                //webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
+            }
+            else
+            {
+                // Создаем новый процесс
+                Process process = new Process();
+                // Задаем параметры запуска процесса
+                process.StartInfo.FileName = "skat.exe";
+                process.StartInfo.Arguments = token; // Первый аргумент
+                // Запускаем процесс
+                process.Start();
+                Thread.Sleep(1000);
+                Close();
+            }
+
+        }
+        private void DownloadNextFile(string filename, long fileS)
+        {
+            if (filesToDownload2.Count > 0)
+            {
+                // currentFile = filesToDownload.Dequeue();
+                string[] huynya3000 = filesToDownload2.Dequeue();
+                currentFile = filename;
+
                 string fileUrl = $"http://skat.geo-atlas.ru/build/{dir}/{currentFile}";
 
                 LabelForText.Content = $"Файл {currentFile} качаем.";
@@ -222,6 +286,8 @@ namespace CKAT
                 {
                     // Обработка ошибок, если они есть.
                     LabelForText.Content = $"Ошибка при загрузке файла {currentFile}.";
+                    //DownloadAll(pass, id_pc, url);
+                    //DownloadNextFile(currentFile, sizeFile);
                 }
                 else if (e.Cancelled)
                 {
