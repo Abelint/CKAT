@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.Remoting.Contexts;
 using System.Security.Policy;
 using System.Text;
 using System.Threading;
@@ -21,6 +22,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using static System.Net.Mime.MediaTypeNames;
 using Path = System.IO.Path;
+using System.Security.Cryptography;
 
 
 namespace CKAT
@@ -30,7 +32,11 @@ namespace CKAT
     /// </summary>
     public partial class MainWindow : Window
     {
-       // private Queue<string> filesToDownload = new Queue<string>();
+        // private Queue<string> filesToDownload = new Queue<string>();
+        Thread thread;
+       static  event Action<int> ValueReceived;
+        static Label label;
+
         private Queue<string[]> filesToDownload2 = new Queue<string[]>();
         private WebClient webClient;
         private string currentFile;
@@ -41,11 +47,9 @@ namespace CKAT
         string pass = "";
         string url = "";
         string id_pc = "";
-        public MainWindow()
+        
+        ImageBrush Brushing(Bitmap src)
         {
-            InitializeComponent();
-           // String path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName), "Resources\\_11.bmp");
-            Bitmap src = Properties.Resources._11;
             MemoryStream ms = new MemoryStream();
             ((System.Drawing.Bitmap)src).Save(ms, System.Drawing.Imaging.ImageFormat.Bmp);
             BitmapImage image = new BitmapImage();
@@ -56,9 +60,27 @@ namespace CKAT
             ImageBrush imBrush = new ImageBrush()
             {
                 //ImageSource = new BitmapImage(new Uri(path))
-                ImageSource =image
+                ImageSource = image
             };
-            this.Background = imBrush;
+
+            return imBrush;
+        }
+        
+        public MainWindow()
+        {
+          
+            InitializeComponent();
+           // String path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName), "Resources\\_11.bmp");
+
+            
+            Bitmap src = Properties.Resources._11;
+           
+            this.Background = Brushing(src);
+            src = Properties.Resources.krestik;
+            krestikButton.Background = Brushing(src);
+            
+            src = Properties.Resources.svernut;
+            svernutButton.Background = Brushing(src);
 
             int percent = 0;
             // Параметры для POST-запроса
@@ -66,36 +88,38 @@ namespace CKAT
             //string dir = "grups1";
             pass = "8882";
            
-            id_pc = UniqueComputerIdentifier.GetComputerIdentifier(); //номер компьютера
+            id_pc = UniqueComputerIdentifier.GetComputerIdentifier(); //номер компьютера    // добавить хэширование
+            byte[] bytes = Encoding.ASCII.GetBytes(id_pc);
+            MD5 md5 = MD5.Create();
+            byte[] hesh = md5.ComputeHash(bytes);
+            id_pc = Convert.ToString(hesh);
             Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut.ini");
            // Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut_работает.ini");
             Dictionary<string, string> positionIni = iniFile["PERINF"];
             grups = positionIni["idcl"];
             dir = grups;
             token = positionIni["token"];
+            Process[] process = Process.GetProcesses();
+            foreach( Process processItem in process)
+            {
+                if (processItem.ProcessName == "skat" || processItem.ProcessName == "skat.exe")
+                {
+                    processItem.Kill();
+                }
+               
 
-            Thread thread = new Thread(OtdelniyThread);
-            thread.Start();
+            }
+
+           
+            label = LabelForText;
+                ValueReceived += HandleValueReceived;
+                thread = new Thread(OtdelniyThread);
+                thread.Start();
+           
 
 
-
-
-            //bool allRight = DownloadAll(pass, id_pc,url);
             
-            //if (allRight)
-            //{
-            //    // Создаем новый процесс
-            //    Process process = new Process();
-            //    // Задаем параметры запуска процесса
-            //    process.StartInfo.FileName = "skat.exe";
-            //    process.StartInfo.Arguments = token; // Первый аргумент
-            //    // Запускаем процесс
-            //    process.Start();
-            //    Thread.Sleep(1000);
 
-            //    Close();
-            //}
-          
 
         }
 
@@ -127,8 +151,8 @@ namespace CKAT
             catch(Exception e)
             {
                 countNehorosho++;
-                Thread.Sleep(1500);
-                if (countNehorosho < 50) goto nehorosho;
+                Thread.Sleep(250);
+                if (countNehorosho < 20) goto nehorosho;
                 else
                 {
                     //Создаем новый процесс
@@ -153,8 +177,7 @@ namespace CKAT
                     {
                         string responseText = reader.ReadToEnd();
                         // Обработка ответа
-                        responseText = responseText.Remove(responseText.Length - 1);
-                        //  ProcessResponse(responseText);
+
 
                         responseText = responseText.Remove(responseText.Length - 1);
                         // Разделение списка файлов с размерами
@@ -163,6 +186,7 @@ namespace CKAT
                         int countList = files.Length;
                         int count = 0;
                         // В основном методе, после разбора ответа
+
                         foreach (string file in files)
                         {
                             // Логика по подготовке очереди для загрузки...
@@ -171,10 +195,13 @@ namespace CKAT
                             ;
                             string fileName = fileInfo[0].Replace("build/" + dir + "\\", "");
                             string fileSize = fileInfo[1];
+                            Dispatcher.Invoke(new Action(() => {
+                                //progressBar.Value = count * 100 / files.Length;
+                                LabelForText.Content = "Загружаем " + fileName;
+                            }));
 
-
-                            // Создание папки для сохранения файлов, если она не существует
-                            string directory = Path.GetDirectoryName(Path.GetFullPath(fileName));
+                        // Создание папки для сохранения файлов, если она не существует
+                        string directory = Path.GetDirectoryName(Path.GetFullPath(fileName));
                             if (!Directory.Exists(directory))
                             {
                                 Directory.CreateDirectory(directory);
@@ -217,8 +244,12 @@ namespace CKAT
 
                         count++;
                         //progressBar.Value = count;
-                       // filesToDownload.Enqueue(file);
-                      
+                        // filesToDownload.Enqueue(file);
+                        //ValueReceived?.Invoke(count);
+                        Dispatcher.Invoke(new Action(() => { 
+                            progressBar.Value = count*100/files.Length;
+                            //LabelForText.Content ="Загружаем "+fileName; 
+                        }));
                         }
 
                     if (count == files.Length)
@@ -230,328 +261,26 @@ namespace CKAT
                         process.StartInfo.Arguments = token; // Первый аргумент
                         // Запускаем процесс
                         process.Start();
-                        Thread.Sleep(1000);
-
-                        Close();
+                        Thread.Sleep(250);
+                        Dispatcher.Invoke(new Action(() => {
+                            //progressBar.Value = count * 100 / files.Length;
+                            Close();
+                        }));
+                     
                     }
 
                 }
             }
-            //}
-            //catch (Exception ex)
-            //{
-               
-            //}
+           
 
         }
 
+        static  void HandleValueReceived(int value)
+        {
+            // Обрабатываем полученное значение в основном потоке
+            //label.Content="";
+        }
 
-
-        ///// <summary>
-        ///// 
-        ///// </summary>
-        ///// <param name="pass"></param>
-        ///// <param name="id_pc"></param>
-        ///// <param name="url"></param>
-        ///// <returns></returns>
-        //bool DownloadAll(string pass, string id_pc, string url)
-        //{
-        //    byte count = 0;
-        //    bool allRight = true;
-        //    while (count < 10 && allRight)
-        //    {
-        //        try
-        //        {
-        //            allRight = false;
-        //            // Формирование POST-данных
-        //            string postData = $"dir={dir}&pass={pass}&grups={grups}&id_pc={id_pc}";
-
-        //            // Создание объекта запроса
-        //            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-        //            request.Method = "POST";
-        //            request.ContentType = "application/x-www-form-urlencoded";
-
-        //            // Запись POST-данных в поток запроса
-        //            using (StreamWriter writer = new StreamWriter(request.GetRequestStream()))
-        //            {
-        //                writer.Write(postData);
-        //            }
-
-        //            // Отправка запроса и получение ответа
-        //            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-        //            {
-        //                // Чтение ответа
-        //                using (StreamReader reader = new StreamReader(response.GetResponseStream()))
-        //                {
-        //                    string responseText = reader.ReadToEnd();
-        //                    // Обработка ответа
-        //                    responseText = responseText.Remove(responseText.Length - 1);
-        //                    //  ProcessResponse(responseText);
-
-        //                    responseText = responseText.Remove(responseText.Length - 1);
-        //                    // Разделение списка файлов с размерами
-        //                    string[] files = responseText.Split(';');
-
-        //                    // В основном методе, после разбора ответа
-        //                    foreach (string file in files)
-        //                    {
-        //                        // Логика по подготовке очереди для загрузки...
-        //                        // Разделение имени файла и его размера
-        //                        string[] fileInfo = file.Split('-');
-        //                        ;
-        //                        string fileName = fileInfo[0].Replace("build/" + dir + "\\", "");
-        //                        string fileSize = fileInfo[1];
-
-
-        //                        // Создание папки для сохранения файлов, если она не существует
-        //                        string directory = Path.GetDirectoryName(Path.GetFullPath(fileName));
-        //                        if (!Directory.Exists(directory))
-        //                        {
-        //                            Directory.CreateDirectory(directory);
-        //                        }
-
-        //                        // filesToDownload.Enqueue(file);
-        //                        fileInfo[0] = fileInfo[0].Replace("build/" + dir + "\\", "");
-        //                        filesToDownload2.Enqueue(fileInfo);
-        //                    }
-
-
-        //                    InitializeDownloader(); // Инициализация WebClient и настройка событий
-        //                    DownloadNextFile(); // Начать загрузку первого файла в очереди
-
-
-        //                }
-        //            }
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            count++;
-        //            allRight = true;
-        //            Thread.Sleep(1000);
-        //        }
-        //    }
-        //    return allRight;
-        //}
-
-
-        //private void DownloadNextFile()
-        //{
-        //    if (filesToDownload2.Count > 0)
-        //    {
-        //        // currentFile = filesToDownload.Dequeue();
-        //        string[] huynya3000 = filesToDownload2.Dequeue();
-        //        currentFile = huynya3000[0];
-
-        //        string fileUrl = $"http://skat.geo-atlas.ru/build/{dir}/{currentFile}";
-
-        //        LabelForText.Content = $"Файл {currentFile} качаем.";
-        //        FileInfo existingFile = new FileInfo(currentFile);
-        //        long fileSize = long.Parse(huynya3000[1]);
-        //        sizeFile = fileSize;
-
-        //        if (!File.Exists(existingFile.FullName))
-        //        {
-        //            webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //        }
-        //        else if (existingFile.Length != fileSize)
-        //        {
-        //            webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //        }
-        //        else
-        //        {
-        //            DownloadNextFile();
-        //        }
-
-        //        //webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //    }
-        //    else
-        //    {
-        //        // Создаем новый процесс
-        //        Process process = new Process();
-        //        // Задаем параметры запуска процесса
-        //        process.StartInfo.FileName = "skat.exe";
-        //        process.StartInfo.Arguments = token; // Первый аргумент
-        //        // Запускаем процесс
-        //        process.Start();
-        //        Thread.Sleep(1000);
-        //        Close();
-        //    }
-
-        //}
-        //private void DownloadNextFile(string filename, long fileS)
-        //{
-        //    if (filesToDownload2.Count > 0)
-        //    {
-        //        // currentFile = filesToDownload.Dequeue();
-        //        string[] huynya3000 = filesToDownload2.Dequeue();
-        //        currentFile = filename;
-
-        //        string fileUrl = $"http://skat.geo-atlas.ru/build/{dir}/{currentFile}";
-
-        //        LabelForText.Content = $"Файл {currentFile} качаем.";
-        //        FileInfo existingFile = new FileInfo(currentFile);
-        //        long fileSize = long.Parse(huynya3000[1]);
-
-        //        if (!File.Exists(existingFile.FullName))
-        //        {
-        //            webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //        }
-        //        else if (existingFile.Length != fileSize)
-        //        {
-        //            webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //        }
-        //        else
-        //        {
-        //            DownloadNextFile();
-        //        }
-
-        //        //webClient.DownloadFileAsync(new Uri(fileUrl), currentFile);
-        //    }
-        //    else
-        //    {
-        //        // Создаем новый процесс
-        //        Process process = new Process();
-        //        // Задаем параметры запуска процесса
-        //        process.StartInfo.FileName = "skat.exe";
-        //        process.StartInfo.Arguments = token; // Первый аргумент
-        //        // Запускаем процесс
-        //        process.Start();
-        //        Thread.Sleep(1000);
-        //        Close();
-        //    }
-
-        //}
-        //private void InitializeDownloader()
-        //{
-        //    webClient = new WebClient();
-
-        //   // webClient.dow
-        //    webClient.DownloadProgressChanged += (s, e) =>
-        //    {
-        //        progressBar.Value = e.ProgressPercentage;
-        //        // Проверка размера файла
-
-        //            LabelForText.Content = $"Файл {currentFile} качаем.";
-        //    };
-
-        //    webClient.DownloadFileCompleted += (s, e) =>
-        //    {
-        //        if (e.Error != null)
-        //        {
-        //            // Обработка ошибок, если они есть.
-        //            LabelForText.Content = $"Ошибка при загрузке файла {currentFile}.";
-        //            MessageBox.Show($"Ошибка при загрузке файла {currentFile}.");
-        //            Close();
-        //            //DownloadAll(pass, id_pc, url);
-        //            //DownloadNextFile(currentFile, sizeFile);
-        //        }
-        //        else if (e.Cancelled)
-        //        {
-        //            // Обработка ситуации отмены загрузки.
-        //            LabelForText.Content = $"Загрузка файла {currentFile} отменена.";
-        //        }
-        //        else
-        //        {
-        //            // Файл успешно загружен.
-        //            LabelForText.Content = $"Файл {currentFile} загружен.";
-        //            DownloadNextFile(); // Запуск загрузки следующего файла в очереди.
-        //        }
-        //    };
-        //}
-
-
-        //private void MainWindow_Load(object sender, EventArgs e)
-        //{
-        //    int percent = 0;
-        //    // Параметры для POST-запроса
-        //    string url = "http://skat.geo-atlas.ru/1.php";
-        //    string dir = "grups1";
-        //    string pass = "8882";
-        //    string grups = "grups1";
-        //    string id_pc = "test";
-
-        //    // Формирование POST-данных
-        //    string postData = $"dir={dir}&pass={pass}&grups={grups}&id_pc={id_pc}";
-
-        //    // Создание объекта запроса
-        //    HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-        //    request.Method = "POST";
-        //    request.ContentType = "application/x-www-form-urlencoded";
-
-        //    // Запись POST-данных в поток запроса
-        //    using (StreamWriter writer = new StreamWriter(request.GetRequestStream()))
-        //    {
-        //        writer.Write(postData);
-        //    }
-
-        //    // Отправка запроса и получение ответа
-        //    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-        //    {
-        //        // Чтение ответа
-        //        using (StreamReader reader = new StreamReader(response.GetResponseStream()))
-        //        {
-        //            string responseText = reader.ReadToEnd();
-        //            // Обработка ответа
-        //            responseText = responseText.Remove(responseText.Length - 1);
-        //            //  ProcessResponse(responseText);
-
-        //            responseText = responseText.Remove(responseText.Length - 1);
-        //            // Разделение списка файлов с размерами
-        //            string[] files = responseText.Split(';');
-        //            foreach (string file in files)
-        //            {
-        //                // Разделение имени файла и его размера
-        //                string[] fileInfo = file.Split('-');
-        //                ;
-        //                string fileName = fileInfo[0].Replace("build/grups1\\", "");
-        //                string fileSize = fileInfo[1];
-
-
-        //                // Создание папки для сохранения файлов, если она не существует
-        //                string directory = Path.GetDirectoryName(Path.GetFullPath(fileName));
-        //                if (!Directory.Exists(directory))
-        //                {
-        //                    Directory.CreateDirectory(directory);
-        //                }
-
-        //                // Проверка, существует ли файл
-        //                if (File.Exists(fileName))
-        //                {
-        //                    // Проверка размера файла
-        //                    FileInfo existingFile = new FileInfo(fileName);
-        //                    if (existingFile.Length != long.Parse(fileSize))
-        //                    {
-        //                        // Скачивание файла
-        //                        Console.WriteLine($"Файл {fileName} качаем.");
-        //                        string fileUrl = "http://skat.geo-atlas.ru/build/grups1/" + fileName;
-        //                        WebClient webClient = new WebClient();
-        //                        webClient.DownloadFile(fileUrl, fileName);
-        //                        Console.WriteLine($"Файл {fileName} обновлен.");
-        //                    }
-        //                    else
-        //                    {
-        //                        Console.WriteLine($"Файл {fileName} не требует обновления.");
-        //                    }
-        //                }
-        //                else
-        //                {
-        //                    // Скачивание файла, если его нет
-        //                    Console.WriteLine($"Файл {fileName} качаем.");
-        //                    string fileUrl = "http://skat.geo-atlas.ru:49800/build/grups1/" + fileName;
-        //                    WebClient webClient = new WebClient();
-        //                    webClient.DownloadFile(fileUrl, fileName);
-        //                    Console.WriteLine($"Файл {fileName} загружен.");
-        //                }
-
-
-
-        //            }
-        //        }
-
-
-
-        //    }
-        //}
 
         static Dictionary<string, Dictionary<string, string>> ReadIniFile(string filePath)
         {
@@ -581,20 +310,26 @@ namespace CKAT
             return iniData;
         }
 
+       
 
-        ////    static void ProcessResponse(string responseText)
-        ////{
+        private void krestikButton_Click(object sender, RoutedEventArgs e)
+        {
+            if(thread != null) thread.Abort();
+            Close();
+        }
 
+        private void svernutButton_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
 
-        ////// Создаем новый процесс
-        ////Process process = new Process();
-        ////// Задаем параметры запуска процесса
-        ////process.StartInfo.FileName = "skat.exe";
-        ////process.StartInfo.Arguments = "ff2123eeee222"; // Первый аргумент
-        ////// Запускаем процесс
-        ////process.Start();
-        ////}
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            this.DragMove();
+        }
     }
+
+   
 }
 
 

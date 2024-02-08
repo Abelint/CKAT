@@ -8,17 +8,48 @@
         Title="MainWindow" Height="456" Width="675"
         WindowStyle="None"
         ResizeMode="NoResize"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+    <Window.Resources>
+        <Style TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="#3D5754"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="Red"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Grid x:Name="Lay" Margin="0,0,0,0">
+        <UserControl>
+            <UserControl.Resources>
+                <Image x:Key="krestikImage" Source="krestik"/>
+            </UserControl.Resources>
+        </UserControl>
         <Canvas Margin="291,406,101,35" >
             <ProgressBar x:Name="progressBar" Height="36" Width="368" Margin="0,0,0,0"></ProgressBar>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Label x:Name="LabelForText" Canvas.Bottom="0" Canvas.Right="0" Canvas.Left="0" Canvas.Top="0" HorizontalAlignment="Center"
-                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center" Width="358" Height="33">erge</Label>
+                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center" Width="358" Height="33">Попытка соединения с сервером</Label>
             </StackPanel>
-            
-            
+
+
         </Canvas>
+        <Button x:Name="krestikButton" HorizontalAlignment="Left" Margin="647,10,0,0" VerticalAlignment="Top" Width="18px" Height="18px" Click="krestikButton_Click"/>
+
+        <Button x:Name="svernutButton" HorizontalAlignment="Left" Margin="624,10,0,0" VerticalAlignment="Top" Width="18px" Height="18px"  Click="svernutButton_Click"
+                RenderTransformOrigin="1.378,0.534"/>
+
 
     </Grid>
+
 </Window>
