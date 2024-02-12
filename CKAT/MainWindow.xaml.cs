@@ -92,7 +92,11 @@ namespace CKAT
             byte[] bytes = Encoding.ASCII.GetBytes(id_pc);
             MD5 md5 = MD5.Create();
             byte[] hesh = md5.ComputeHash(bytes);
-            id_pc = Convert.ToString(hesh);
+            id_pc =  "";
+            foreach (byte b in hesh)
+            {
+                id_pc += Convert.ToString(b);
+            }
             Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut.ini");
            // Dictionary<string, Dictionary<string, string>> iniFile = ReadIniFile("inibut_работает.ini");
             Dictionary<string, string> positionIni = iniFile["PERINF"];
@@ -130,10 +134,11 @@ namespace CKAT
             //try
             //{
             int countNehorosho = 0;
-            nehorosho:
+        nehorosho:
 
+            string key = File.ReadAllText("key");
                 // Формирование POST-данных
-                string postData = $"dir={dir}&pass={pass}&grups={grups}&id_pc={id_pc}";
+                string postData = $"dir={dir}&pass={pass}&grups={grups}&id_pc={id_pc}&token_key={key}";
 
                 // Создание объекта запроса
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
